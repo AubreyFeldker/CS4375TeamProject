@@ -61,6 +61,6 @@ print(df.head())
 
 # Convert Python DateTime to Unix Timestamp / Remove nan values that for some reason the other ways above did not capture
 df['Timestamp'] = df['Timestamp'].apply(lambda x: datetime.datetime.strptime(str(x)[0:-2],'%Y%m%d%H%M').timestamp() if str(x) != 'nan' else -1)
-df[df['Timestamp'] != -1]
+df = df.sort_values(by = 'Timestamp')
 
 df.to_csv('processed_weather_df.csv', index=False)
