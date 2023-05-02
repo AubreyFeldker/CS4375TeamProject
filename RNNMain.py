@@ -72,10 +72,8 @@ for internal_layers in internal_layers_list:
             # Storing the results
             key = (internal_layers, update_weight, seq_length)
             results[key] = {
-                "train_r2": np.mean(train_r2_scores),
                 "train_mse": np.mean(train_mse_scores),
-                "test_r2": np.mean(test_r2_scores),
-                "test_mse2": np.mean(test_mse_scores)
+                "test_mse": np.mean(test_mse_scores)
             }
 
 
