@@ -1,4 +1,5 @@
 import random, math, pandas as pd, numpy as np
+from sklearn.metrics import r2_score, mean_squared_error
 
 class RNN:
 
@@ -26,11 +27,12 @@ class RNN:
         layer_values[0] = np.append(input.to_numpy(), [1])
 
         # Iterate through layers in NN, applying tanh at each node
+        i = 0
         for i in range(1, self.num_layers-2):
             layer_values[i] = np.append(self.tanh(layer_values[i-1].dot(self.weight_matrix[i])), [1])
 
         # Last iteration into the output nodes
-        output = layer_values[i].dot(self.output_weight_matrix)
+        output = self.tanh(layer_values[i].dot(self.output_weight_matrix))
         return layer_values, output
     
     def backward_pass(self, layer_values, output, expected):
@@ -60,7 +62,8 @@ class RNN:
         return loss / len(output)
 
     def train(self, train_items, sequence_length):
-        
+        predicted_outputs = []
+        actual_outputs = []
         # Iterate through each temportal sequence of [sequence length] times, performing forward & back propagation
         for sequence_start in range(0, len(train_items) - sequence_length - 2):
             tot_loss = 0
@@ -73,6 +76,9 @@ class RNN:
                 layer_values, output = self.forward_pass(input)
                 tot_loss += self.loss_funct(output, train_items.iloc[sequence_start+i, 1:self.output_nodes+1].to_numpy())
 
+                predicted_outputs.append(output)
+                actual_outputs.append(train_items.iloc[sequence_start+i, 1:self.output_nodes+1].to_numpy())
+
                 self.backward_pass(layer_values, output, train_items.iloc[sequence_start+i, 1:self.output_nodes+1].to_numpy())
 
                 input = pd.concat([pd.Series(output), train_items.iloc[sequence_start+i, self.output_nodes+1:]], axis=0).rename_axis(None)
@@ -80,9 +86,19 @@ class RNN:
 
             print(f'Training Iteration {sequence_start} - Loss = {tot_loss / sequence_length}')
 
+        predicted_outputs = np.array(predicted_outputs)
+        actual_outputs = np.array(actual_outputs)
+
+        r2 = r2_score(actual_outputs, predicted_outputs)
+        mse = mean_squared_error(actual_outputs, predicted_outputs)
+        print(f'r^2: {r2}, MSE: {mse}')
+        return r2, mse
+
 
     def test(self, test_items, sequence_length):
         tot_loss = 0
+        predicted_outputs = []
+        actual_outputs = []
         for sequence_start in range(0, len(test_items) - sequence_length - 2, sequence_length):
             
             # Removing index item
@@ -94,7 +110,18 @@ class RNN:
                 layer_values, output = self.forward_pass(input)
                 tot_loss += self.loss_funct(output, test_items.iloc[sequence_start+i, 1:self.output_nodes+1].to_numpy())
 
+                predicted_outputs.append(output)
+                actual_outputs.append(test_items.iloc[sequence_start+i, 1:self.output_nodes+1].to_numpy())
+
                 input = pd.concat([pd.Series(output), test_items.iloc[sequence_start+i, self.output_nodes+1:]], axis=0).rename_axis(None)
                 input.iloc[self.nodes_per_layer-2] = test_items.iloc[sequence_start+i+1][self.nodes_per_layer-1] - input.iloc[self.nodes_per_layer-2] 
 
             print(f'Testing Iteration {sequence_start} - Loss = {tot_loss / (sequence_start + sequence_length)}')
+
+        predicted_outputs = np.array(predicted_outputs)
+        actual_outputs = np.array(actual_outputs)
+
+        r2 = r2_score(actual_outputs, predicted_outputs)
+        mse = mean_squared_error(actual_outputs, predicted_outputs)
+        print(f'r^2: {r2}, MSE: {mse}')
+        return r2, mse

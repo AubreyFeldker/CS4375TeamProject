@@ -18,10 +18,10 @@ df = pd.read_csv('https://raw.githubusercontent.com/AubreyFeldker/CS4375TeamProj
 # Removes rows missing values in the one-hot
 df[df['Cold'].astype(bool)]  
 
+n_remove = 30000
+df = df.sample(n=len(df)-n_remove).sort_index()
 df = df.sort_values(by = ['Latitude', 'Longitude', 'Timestamp'])
-df = df.reset_index()
-
-print(df[['Latitude', 'Longitude']].value_counts())
+df = df.reset_index().drop(['index'], axis=1)
 
 split_ratio = 0.8
 split_index = int(len(df) * split_ratio)
@@ -30,26 +30,54 @@ df_groups = df.groupby(['Latitude', 'Longitude'])
 
 rnn = RNN(internal_layers=3, input_nodes=len(df.columns) - 1, output_nodes=7)
 
-seq_length = 10
+training_seq_length = 10
 
-# Applying the neural network across each set of lat/long, since they are constants during a recursive network
-for name, group in df_groups:
-    # 80/20 test-train split along each group
-    split_index = int(len(group) * split_ratio)
-    #rnn.train(training_data=group[:split_index], epochs=4, sequence_length=10)
-    #group = group.drop(['Timestamp'], axis = 1)
+internal_layers_list = [1, 3]
+update_weight_list = [.0005, 0.0001, .00005]
+sequence_length_list = [10, 15, 20]
+results = {}
 
-    # Normalization of timestamps to minutes
-    group['Timestamp'] = group['Timestamp'] / 60000
+for internal_layers in internal_layers_list:
+    for update_weight in update_weight_list:
+        
+        print(f"Testing internal_layers: {internal_layers}, update_weight: {update_weight}")
 
-    
+        rnn = RNN(internal_layers=internal_layers, input_nodes=len(df.columns) - 1, output_nodes=7, update_weight=update_weight)
 
-    rnn.train(train_items=group[:split_index], sequence_length=seq_length)
-    break
-    
-for name, group in df_groups:
-    split_index = int(len(group) * split_ratio)
-    group['Timestamp'] = group['Timestamp'] / 60000
+        # Training the RNN
+        train_r2_scores = []
+        train_mse_scores = []
+        for name, group in df_groups:
+            # 80/20 test-train split along each group
+            split_index = int(len(group) * split_ratio)
+            # Normalization of timestamps to minutes
+            group['Timestamp'] = group['Timestamp'] / 60000
+            r2, mse = rnn.train(train_items=group[:split_index], sequence_length=training_seq_length)
+            train_r2_scores.append(r2)
+            train_mse_scores.append(mse)
 
-    rnn.test(test_items=group[split_index:], sequence_length=seq_length)
+
+        for seq_length in sequence_length_list:
+
+            # Testing the RNN
+            test_r2_scores = []
+            test_mse_scores = []
+            for name, group in df_groups:
+                split_index = int(len(group) * split_ratio)
+                group['Timestamp'] = group['Timestamp'] / 60000
+                r2, mse = rnn.test(test_items=group[split_index:], sequence_length=seq_length)
+                test_r2_scores.append(r2)
+                test_mse_scores.append(mse)
+
+            # Storing the results
+            key = (internal_layers, update_weight, seq_length)
+            results[key] = {
+                "train_r2": np.mean(train_r2_scores),
+                "train_mse": np.mean(train_mse_scores),
+                "test_r2": np.mean(test_r2_scores),
+                "test_mse2": np.mean(test_mse_scores)
+            }
+
+
+            print(results)
     
